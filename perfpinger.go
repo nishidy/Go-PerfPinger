@@ -21,7 +21,6 @@ func main() {
 		fmt.Println(os.Stderr, "Failed to resolve with ", hostname, err)
 		os.Exit(1)
 	}
-	fmt.Println(ra)
 
 	datalen, err := strconv.Atoi(os.Args[2])
 	if err != nil {
@@ -50,7 +49,9 @@ func main() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT)
 
-	retcnt := 0
+	sends := 0
+	receives := 0
+
 	exitchan := make(chan int)
 	go func() {
 		t := time.NewTicker(time.Duration(interval) * time.Millisecond)
@@ -61,7 +62,7 @@ func main() {
 					Type: ipv4.ICMPTypeEcho,
 					Code: 0,
 					Body: &icmp.Echo{
-						ID: 0, Seq: 0,
+						ID: 0, Seq: sends,
 						Data: data,
 					},
 				}).Marshal(nil)
@@ -76,18 +77,19 @@ func main() {
 					os.Exit(5)
 				}
 
-				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 1000))
+				conn.SetReadDeadline(time.Now().Add(time.Duration(interval) * time.Millisecond))
 				size, addr, err := conn.ReadFrom(bytes)
 				if err != nil {
-					fmt.Println(os.Stderr, "Failed to read ICMP message", err)
-					os.Exit(6)
+					fmt.Printf("Time out from %s: icmp_seq=%d\n", ra.IP, sends)
+				} else {
+					fmt.Printf("%d bytes from %s: icmp_seq=%d\n", size, addr, sends)
+					receives += 1
 				}
-
-				fmt.Printf("%d bytes from %s: icmp_seq=%d\n", size, addr, retcnt)
-				retcnt += 1
+				sends += 1
 
 			case <-sigchan:
 				exitchan <- 1
+				return
 
 			}
 		}
@@ -98,7 +100,7 @@ func main() {
 	finish := time.Now()
 
 	dur := finish.Sub(start).Seconds() / time.Second.Seconds()
-	thr := float64(retcnt) * (float64(datalen) * 8) / (dur * 1024 * 2)
-	fmt.Printf("%d packets in %.2f sec : %.2f Kbps.\n", retcnt, dur, thr)
+	thr := float64(receives) * (float64(datalen) * 8) / (dur * 1024 * 2)
+	fmt.Printf("%d packets in %.2f sec : %.2f Kbps of both UL and DL.\n", receives, dur, thr)
 
 }

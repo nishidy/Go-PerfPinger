@@ -47,7 +47,8 @@ func main() {
 		data[i] = 1
 	}
 
-	id := rand.Int()
+	rand.Seed(time.Now().UnixNano())
+	id := rand.Intn(65535)
 
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT)

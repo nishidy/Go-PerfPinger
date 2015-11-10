@@ -50,6 +50,7 @@ func main() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT)
 
+	retcnt := 0
 	exitchan := make(chan int)
 	go func() {
 		t := time.NewTicker(time.Duration(interval) * time.Millisecond)
@@ -75,25 +76,27 @@ func main() {
 					os.Exit(5)
 				}
 
-				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+				conn.SetReadDeadline(time.Now().Add(time.Millisecond * 1000))
 				size, addr, err := conn.ReadFrom(bytes)
 				if err != nil {
 					fmt.Println(os.Stderr, "Failed to read ICMP message", err)
 					os.Exit(6)
 				}
 
-				fmt.Println(size, addr, bytes)
+				retcnt += 1
+				fmt.Println(size, addr, bytes, retcnt)
 
 			case <-sigchan:
 				exitchan <- 1
 
 			}
 		}
-		t.Stop()
 	}()
 
+	start := time.Now()
 	_ = <-exitchan
+	finish := time.Now()
 
-	fmt.Println("Bye.")
+	fmt.Printf("%d packets in %.2f sec.\n", retcnt, finish.Sub(start).Seconds()/time.Second.Seconds())
 
 }

@@ -70,7 +70,7 @@ func main() {
 					os.Exit(4)
 				}
 
-				size, err := conn.WriteTo(bytes, &net.UDPAddr{IP: ra.IP, Zone: ra.Zone})
+				_, err = conn.WriteTo(bytes, &net.UDPAddr{IP: ra.IP, Zone: ra.Zone})
 				if err != nil {
 					fmt.Println(os.Stderr, "Failed to write ICMP message", err)
 					os.Exit(5)
@@ -83,8 +83,8 @@ func main() {
 					os.Exit(6)
 				}
 
+				fmt.Printf("%d bytes from %s: icmp_seq=%d\n", size, addr, retcnt)
 				retcnt += 1
-				fmt.Println(size, addr, bytes, retcnt)
 
 			case <-sigchan:
 				exitchan <- 1
@@ -98,7 +98,7 @@ func main() {
 	finish := time.Now()
 
 	dur := finish.Sub(start).Seconds() / time.Second.Seconds()
-	thr := float64(retcnt) * (float64(datalen) * 8) / dur
-	fmt.Printf("%d packets in %.2f sec : %.2f bps.\n", retcnt, dur, thr)
+	thr := float64(retcnt) * (float64(datalen) * 8) / (dur * 1024 * 2)
+	fmt.Printf("%d packets in %.2f sec : %.2f Kbps.\n", retcnt, dur, thr)
 
 }

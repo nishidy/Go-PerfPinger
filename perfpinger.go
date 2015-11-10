@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -46,6 +47,8 @@ func main() {
 		data[i] = 1
 	}
 
+	id := rand.Int()
+
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT)
 
@@ -62,7 +65,7 @@ func main() {
 					Type: ipv4.ICMPTypeEcho,
 					Code: 0,
 					Body: &icmp.Echo{
-						ID: 0, Seq: sends,
+						ID: id, Seq: sends,
 						Data: data,
 					},
 				}).Marshal(nil)

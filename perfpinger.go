@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -84,10 +85,32 @@ func main() {
 				conn.SetReadDeadline(time.Now().Add(time.Duration(interval) * time.Millisecond))
 				size, addr, err := conn.ReadFrom(bytes)
 				if err != nil {
-					fmt.Printf("Time out from %s: icmp_seq=%d\n", ra.IP, sends)
+					fmt.Printf("Timed out from %s: icmp_seq=%d\n", ra.IP, sends)
 				} else {
-					fmt.Printf("%d bytes from %s: icmp_seq=%d\n", size, addr, sends)
-					receives += 1
+
+					var rep *icmp.Message
+					rep, err := icmp.ParseMessage(1, bytes)
+					if err != nil {
+						fmt.Printf("Reply error from %s: icmp_seq=%d\n", addr, sends)
+					} else {
+
+						if strings.Split(addr.String(), ":")[0] != ra.IP.String() {
+							fmt.Printf("%d bytes from %s !?: icmp_seq=%d\n", size, addr, sends)
+						} else {
+							switch pkt := rep.Body.(type) {
+							case *icmp.Echo:
+								if pkt.ID == id {
+									fmt.Printf("%d bytes from %s: icmp_seq=%d\n",
+										size, addr, sends)
+									receives += 1
+								}
+							default:
+								return
+							}
+						}
+
+					}
+
 				}
 				sends += 1
 

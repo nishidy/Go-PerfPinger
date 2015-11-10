@@ -97,6 +97,8 @@ func main() {
 	_ = <-exitchan
 	finish := time.Now()
 
-	fmt.Printf("%d packets in %.2f sec.\n", retcnt, finish.Sub(start).Seconds()/time.Second.Seconds())
+	dur := finish.Sub(start).Seconds() / time.Second.Seconds()
+	thr := float64(retcnt) * (float64(datalen) * 8) / dur
+	fmt.Printf("%d packets in %.2f sec : %.2f bps.\n", retcnt, dur, thr)
 
 }

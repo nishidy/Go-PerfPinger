@@ -44,7 +44,7 @@ func main() {
 
 	data := make([]byte, datalen)
 	for i := 0; i < datalen; i++ {
-		data[i] = 1
+		data[i] = uint8(i)
 	}
 
 	rand.Seed(time.Now().UnixNano())

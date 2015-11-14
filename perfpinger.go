@@ -83,6 +83,7 @@ func (p *Ping) doPing() {
 				fmt.Println(os.Stderr, "Failed to write ICMP message", err)
 				os.Exit(5)
 			}
+			start := time.Now().UnixNano()
 
 			p.conn.SetReadDeadline(
 				time.Now().Add(time.Duration(p.intv) * time.Millisecond),
@@ -91,12 +92,13 @@ func (p *Ping) doPing() {
 			for {
 				rbytes := make([]byte, p.size+8)
 				size, addr, err := p.conn.ReadFrom(rbytes)
+				stop := time.Now().UnixNano()
 
 				if err != nil {
 					fmt.Printf("* Timed out from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
 				} else {
 					if p.addr.String() == addr.String() {
-						if p.parseMessage(Reply{addr, size, rbytes}) {
+						if p.parseMessage(Reply{addr, size, rbytes}, stop-start) {
 							p.receives += 1
 						}
 						break
@@ -112,7 +114,7 @@ func (p *Ping) doPing() {
 	}
 }
 
-func (p *Ping) parseMessage(r Reply) bool {
+func (p *Ping) parseMessage(r Reply, rtt int64) bool {
 	rep, err := icmp.ParseMessage(iana.ProtocolICMP, r.bytes)
 	if err != nil {
 		fmt.Printf("* Reply error from %s: icmp_seq=%d -> %s\n", r.addr, p.sends, r.bytes)
@@ -131,7 +133,7 @@ func (p *Ping) parseMessage(r Reply) bool {
 		return false
 	}
 
-	fmt.Printf("%d bytes from %s: icmp_seq=%d\n", r.size, r.addr, p.sends)
+	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%.2f ms\n", r.size, r.addr, p.sends, float64(rtt)/float64(time.Millisecond))
 	return true
 }
 
@@ -170,6 +172,7 @@ func main() {
 
 	exitch := make(chan int, 1)
 	collch := make(chan int, 1)
+	repch := make(chan int, 1)
 
 	pingnum := 0
 	scanner := bufio.NewScanner(hdlr)
@@ -213,14 +216,19 @@ func main() {
 		for i := 0; i < pingnum; i++ {
 			allrecs += <-collch
 		}
+		repch <- allrecs
 	}()
 
 	start := time.Now()
 	_ = <-exitch
 	finish := time.Now()
+	rep := <-repch
+
+	fmt.Println("")
+	fmt.Println("--- perfpinger statistics ---")
 
 	dur := finish.Sub(start).Seconds() / time.Second.Seconds()
-	thr := float64(allrecs) * (float64(size) * float64(pingnum) * 8) / (dur * 1024 * 2)
-	fmt.Printf("%d packets in %.2f sec : %.2f Kbps of both UL and DL.\n", allrecs, dur, thr)
+	thr := float64(rep) * (float64(size) * float64(pingnum) * 8) / (dur * 1024 * 2)
+	fmt.Printf("Total %d packets in %.2f sec : %.2f Kbps of both UL and DL.\n", rep, dur, thr)
 
 }

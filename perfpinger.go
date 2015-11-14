@@ -95,7 +95,8 @@ func (p *Ping) doPing() {
 				stop := time.Now().UnixNano()
 
 				if err != nil {
-					fmt.Printf("* Timed out from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
+					fmt.Printf("* Request timeout from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
+					break
 				} else {
 					if p.addr.String() == addr.String() {
 						if p.parseMessage(Reply{addr, size, rbytes}, stop-start) {

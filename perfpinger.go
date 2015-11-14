@@ -186,7 +186,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		conn, err := icmp.ListenPacket("ip4:icmp", "10.1.1.108")
+		conn, err := icmp.ListenPacket("ip4:icmp", "")
 		if err != nil {
 			fmt.Println(os.Stderr, "Failed to listen ip4:icmp (%s)", err)
 			os.Exit(3)

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -60,6 +61,8 @@ func (p *Ping) doPing() {
 		time.Duration(p.intv) * time.Millisecond,
 	)
 
+	wg := new(sync.WaitGroup)
+
 	for {
 		select {
 		case <-t.C:
@@ -83,29 +86,35 @@ func (p *Ping) doPing() {
 				fmt.Println(os.Stderr, "Failed to write ICMP message", err)
 				os.Exit(5)
 			}
+
 			start := time.Now().UnixNano()
 
 			p.conn.SetReadDeadline(
-				time.Now().Add(time.Duration(p.intv) * time.Millisecond),
+				time.Now().Add(time.Duration(p.intv) * time.Millisecond * 2),
 			)
 
-			for {
-				rbytes := make([]byte, p.size+8)
-				size, addr, err := p.conn.ReadFrom(rbytes)
-				stop := time.Now().UnixNano()
+			wg.Add(1)
+			go func() {
+				for {
+					rbytes := make([]byte, p.size+8)
+					size, addr, err := p.conn.ReadFrom(rbytes)
+					stop := time.Now().UnixNano()
 
-				if err != nil {
-					fmt.Printf("* Request timeout from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
-					break
-				} else {
-					if p.addr.String() == addr.String() {
-						if p.parseMessage(Reply{addr, size, rbytes}, stop-start) {
-							p.receives += 1
-						}
+					if err != nil {
+						fmt.Printf("* Request timeout from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
 						break
+					} else {
+						if p.addr.String() == addr.String() {
+							if p.parseMessage(Reply{addr, size, rbytes}, stop-start) {
+								p.receives += 1
+							}
+							break
+						}
 					}
 				}
-			}
+				wg.Done()
+			}()
+			wg.Wait()
 
 		case <-p.exitch:
 			p.collch <- p.receives
@@ -124,7 +133,7 @@ func (p *Ping) parseMessage(r Reply, rtt int64) bool {
 
 	switch pkt := rep.Body.(type) {
 	case *icmp.Echo:
-		if !(pkt.ID == p.id && pkt.Seq == p.sends && bytes.Equal(pkt.Data, p.data)) {
+		if !(pkt.ID == p.id && pkt.Seq <= p.sends && bytes.Equal(pkt.Data, p.data)) {
 			fmt.Printf("* Wrong data %d bytes from %s (ID=[%d,%d], Seq=[%d,%d]): icmp_seq=%d\n",
 				r.size, r.addr, pkt.ID, p.id, pkt.Seq, p.sends, p.sends)
 			return false

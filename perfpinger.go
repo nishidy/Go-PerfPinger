@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -64,6 +63,8 @@ func (p *Ping) doPing() {
 	for {
 		select {
 		case <-t.C:
+
+			p.sends += 1
 			wbytes, err := (&icmp.Message{
 				Type: ipv4.ICMPTypeEcho,
 				Code: 0,
@@ -87,17 +88,21 @@ func (p *Ping) doPing() {
 				time.Now().Add(time.Duration(p.intv) * time.Millisecond),
 			)
 
-			rbytes := make([]byte, p.size+8)
-			size, addr, err := p.conn.ReadFrom(rbytes)
+			for {
+				rbytes := make([]byte, p.size+8)
+				size, addr, err := p.conn.ReadFrom(rbytes)
 
-			if err != nil {
-				fmt.Printf("* Timed out from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
-			} else {
-				if p.parseMessage(Reply{addr, size, rbytes}) {
-					p.receives += 1
+				if err != nil {
+					fmt.Printf("* Timed out from %s: icmp_seq=%d\n", p.addr.IP, p.sends)
+				} else {
+					if p.addr.String() == addr.String() {
+						if p.parseMessage(Reply{addr, size, rbytes}) {
+							p.receives += 1
+						}
+						break
+					}
 				}
 			}
-			p.sends += 1
 
 		case <-p.exitch:
 			p.collch <- p.receives
@@ -113,14 +118,7 @@ func (p *Ping) parseMessage(r Reply) bool {
 		fmt.Printf("* Reply error from %s: icmp_seq=%d -> %s\n", r.addr, p.sends, r.bytes)
 		return false
 	}
-	if strings.Split(p.addr.String(), ":")[0] != p.addr.IP.String() {
-		fmt.Printf("* Replied from %s: icmp_seq=%d\n", r.size, r.addr, p.sends)
-		return false
-	}
-	return p.parseMessageBody(rep, r)
-}
 
-func (p *Ping) parseMessageBody(rep *icmp.Message, r Reply) bool {
 	switch pkt := rep.Body.(type) {
 	case *icmp.Echo:
 		if !(pkt.ID == p.id && pkt.Seq == p.sends && bytes.Equal(pkt.Data, p.data)) {
